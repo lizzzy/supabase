@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supabase Demo</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+  <!-- dayjs -->
+  <script src="https://unpkg.com/dayjs@1.11.13/dayjs.min.js"></script>
+  <!-- vuejs -->
+  <script src="https://unpkg.com/vue@3"></script>
+  <!-- supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- element-plus -->
+  <script src="https://unpkg.com/element-plus"></script>
+  <!-- element-plus 中文包 -->
+  <script src="//unpkg.com/element-plus/dist/locale/zh-cn"></script>
+</head>
+
+<body>
+  <div id="app">
+    <el-card>
+      <!-- 搜索表单 -->
+      <el-form :inline="true" :model="formInline" class="demo-form-inline">
+        <el-form-item label="用户名">
+          <el-input v-model="formInline.username" placeholder="请输入用户名" clearable style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-select v-model="formInline.gender" placeholder="请选择性别" clearable style="width: 220px;">
+            <el-option label="男" value="男"></el-option>
+            <el-option label="女" value="女"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="电话">
+          <el-input v-model="formInline.tel" placeholder="请输入电话" clearable style="width: 220px;" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="formInline.email" placeholder="请输入邮箱" clearable style="width: 220px;" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="getUserList">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+      <div style="margin-bottom: 16px;">
+        <el-button type="primary" @click="handleCreate">创建</el-button>
+      </div>
+      <!-- 表格 -->
+      <el-table :data="tableData" v-loading="loading" style="width: 100%">
+        <el-table-column prop="id" label="ID" width="80"></el-table-column>
+        <el-table-column prop="avatar" label="头像" width="80">
+          <template #default="scope">
+            <el-avatar :size="40" :src="scope.row.avatar" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="username" label="用户名" width="100"></el-table-column>
+        <el-table-column prop="email" label="邮箱"></el-table-column>
+        <el-table-column prop="password" label="密码"></el-table-column>
+        <el-table-column prop="gender" label="性别" width="80"></el-table-column>
+        <el-table-column prop="tel" label="电话"></el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="180">
+          <template #default="scope">
+            {{ format(scope.row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column fixed="right" label="操作" width="120">
+          <template #default="scope">
+            <el-button link type="primary" size="small" @click="handleEdit(scope.$index, scope.row)">
+              编辑
+            </el-button>
+            <el-popconfirm title="您确认要删除这条数据吗？" @confirm="handleDelete(scope.row.id)">
+              <template #reference>
+                <el-button link type="danger" size="small">删除</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+      <!-- 分页 -->
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper" :background="true" :total="totalCount"
+          @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+      </div>
+
+      <!-- 弹窗 -->
+      <el-dialog destroy-on-close v-model="dialogVisible" :title="actionType === 'add' ? '创建' : '编辑'" width="500"
+        @closed="handleClosed">
+        <div v-if="actionType === 'add'"
+          style="display: flex; justify-content: space-between; align-items: center; color:rgb(103, 194, 58); background-color: rgb(240, 249, 235); padding: 8px 16px; border-radius: 4px;">
+          快速生成随机数据
+          <el-button @click="createData">生成</el-button>
+        </div>
+
+        <el-form :model="form" label-width="60px" style="margin-top: 16px;">
+          <el-form-item label="用户名">
+            <el-input v-model="form.username" autocomplete="off" placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="密码">
+            <el-input v-model="form.password" autocomplete="off" placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="邮箱">
+            <el-input v-model="form.email" autocomplete="off" placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="电话">
+            <el-input v-model="form.tel" autocomplete="off" placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="头像">
+            <el-input v-model="form.avatar" autocomplete="off" placeholder="请输入"></el-input>
+          </el-form-item>
+          <el-form-item label="性别">
+            <el-select v-model="form.gender" placeholder="选择性别">
+              <el-option label="男" value="男"></el-option>
+              <el-option label="女" value="女"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="dialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="handleSubmit" :loading="submitLoading">
+              确定
+            </el-button>
+          </div>
+        </template>
+      </el-dialog>
+    </el-card>
+  </div>
+</body>
+
+<script type="module">
+  import { Faker, zh_CN, en } from 'https://esm.sh/@faker-js/faker';
+  const faker = new Faker({
+    // 设置语言环境
+    locale: [zh_CN, en],
+  });
+
+/*   console.log(faker.person.fullName()); // 随机姓名
+  console.log(faker.internet.username()); // 随机账户
+  console.log(faker.internet.password()); // 随机密码
+  console.log(faker.person.sex()); // 随机性别
+  console.log(faker.image.avatarGitHub()); // 随机头像
+  console.log(faker.internet.email()); // 随机邮箱
+  console.log(faker.phone.number()); // 随机手机号 */
+
+
+  const { createApp, ref, reactive, onMounted } = Vue;
+
+
+  // 连接数据库
+  const { createClient } = supabase;
+  const projectURL = "https://koriqtbgyawsgkayjcjh.supabase.co";
+  const publicAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvcmlxdGJneWF3c2drYXlqY2poIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTAzNTcxNywiZXhwIjoyMDc2NjExNzE3fQ.nBOsyOiPLjjpE79iUJqMW3cmW_VADaWvc1JXH4JqeAc";
+  const supabaseClient = createClient(projectURL, publicAnonKey);
+
+
+  const app = createApp({
+    setup () {
+      const loading = ref(false);
+      const submitLoading = ref(false);
+      const currentPage = ref(1);
+      const pageSize = ref(10);
+      const totalCount = ref(0);
+      const tableData = ref([]);
+      const dialogVisible = ref(false);
+      const actionType = ref('add');
+      const editRow = ref(null);
+
+      const formInline = reactive({
+        username: '',
+        gender: '',
+        tel: '',
+        email: '',
+      })
+      const form = reactive({
+        username: '',
+        password: '',
+        email: '',
+        tel: '',
+        avatar: '',
+        gender: '',
+      });
+
+      // 获取列表数据
+      const getUserList = async () => {
+        loading.value = true;
+        // 计算开始索引
+        const start = (currentPage.value - 1) * pageSize.value;
+        // 计算结束索引
+        const end = start + (pageSize.value - 1);
+        let sqlQuery = supabaseClient.from('users')
+          .select('*', { count: 'exact' })
+          .order('id', { ascending: true })
+          .range(start, end);
+
+        if (formInline.username) {
+          sqlQuery = sqlQuery.like('username', `%${formInline.username}%`)
+        }
+        if (formInline.gender) {
+          sqlQuery = sqlQuery.eq('gender', formInline.gender)
+        }
+        if (formInline.tel) {
+          sqlQuery = sqlQuery.eq('tel', formInline.tel)
+        }
+        if (formInline.email) {
+          sqlQuery = sqlQuery.eq('email', formInline.email)
+        }
+
+        const { data, count, error } = await sqlQuery
+        if (error) {
+          ElementPlus.ElMessage({
+            message: `查询失败，${error.message}`,
+            type: 'error',
+            plain: true,
+          });
+          loading.value = false;
+          return;
+        }
+
+        totalCount.value = count;
+        tableData.value = data;
+        loading.value = false;
+
+      }
+
+      onMounted(() => {
+        getUserList();
+      });
+
+      const format = (time) => {
+        return dayjs(time).format('YYYY/MM/DD HH:mm:ss')
+      }
+
+      // 每页数量变化
+      const handleSizeChange = (val) => {
+        pageSize.value = val;
+        getUserList();
+      }
+
+      // 当前页码变化
+      const handleCurrentChange = (val) => {
+        currentPage.value = val;
+        getUserList();
+      }
+
+      const handleCreate = () => {
+        actionType.value = 'add';
+        dialogVisible.value = true;
+      }
+
+      const resetForm = () => {
+        for (let key in form) {
+          form[key] = ""
+        }
+      }
+
+      // 提交数据
+      const handleSubmit = async () => {
+        try {
+          submitLoading.value = true;
+          let res;
+          // 插入数据
+          if (actionType.value === 'add') {
+            res = await supabaseClient.from('users').insert(form);
+          } else if (actionType.value === 'edit') {
+            // update 更新数据
+            res = await supabaseClient.from('users').update(form).eq('id', editRow.value.id);
+          }
+
+          if (res.error) {
+            console.log('@@@_handleSubmit_error:', res.error);
+
+            ElementPlus.ElMessage({
+              message: `${actionType.value === 'add' ? '创建' : '编辑'}失败，请稍后重试`,
+              type: 'error',
+              plain: true,
+            })
+            return;
+          }
+          ElementPlus.ElMessage({
+            message: `${actionType.value === 'add' ? '创建' : '编辑'}成功`,
+            type: 'success',
+            plain: true,
+          })
+          dialogVisible.value = false;
+          getUserList();
+        } catch (error) {
+          console.error(error);
+        } finally {
+          submitLoading.value = false;
+        }
+      }
+
+      const createData = () => {
+        form.username = faker.person.fullName()
+        form.password = faker.internet.password()
+        form.email = faker.internet.email()
+        form.tel = faker.phone.number()
+        form.avatar = faker.image.avatarGitHub()
+        form.gender = faker.person.sex()
+      }
+
+      // 处理编辑
+      const handleEdit = (index, row) => {
+        editRow.value = row;
+
+        actionType.value = 'edit';
+        for (let key in form) {
+          form[key] = row[key];
+        }
+        dialogVisible.value = true;
+      }
+
+      // 处理删除
+      const handleDelete = async (id) => {
+        const { error } = await supabaseClient.from('users').delete().eq('id', id);
+        if (error) {
+          ElementPlus.ElMessage({
+            message: '删除失败',
+            type: 'error',
+            plain: true,
+          });
+          return;
+        }
+        ElementPlus.ElMessage({
+          message: '删除成功',
+          type: 'success',
+          plain: true,
+        });
+        getUserList();
+
+      }
+
+      const handleClosed = () => {
+        resetForm();
+      }
+
+      const resetQuery = () => {
+        for (let key in formInline) {
+          formInline[key] = ''
+        }
+        getUserList();
+      }
+
+      return {
+        loading,
+        submitLoading,
+        currentPage,
+        pageSize,
+        totalCount,
+        tableData,
+        format,
+        handleSizeChange,
+        handleCurrentChange,
+        handleCreate,
+        dialogVisible,
+        handleSubmit,
+        formInline,
+        form,
+        createData,
+        handleDelete,
+        handleEdit,
+        handleClosed,
+        actionType,
+        getUserList,
+        resetQuery,
+      }
+    }
+  });
+
+  app.use(ElementPlus, {
+    locale: ElementPlusLocaleZhCn,
+  });
+  app.mount('#app');
+</script>
+
+</html>
